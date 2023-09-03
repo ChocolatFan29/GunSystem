@@ -1,0 +1,1396 @@
+--{ Services }--
+
+local Players = game:GetService("Players");
+local Debris = game:GetService("Debris");
+local RunService = game:GetService("RunService");
+local TweenService = game:GetService("TweenService");
+local ServerStorage = game:GetService("ServerStorage");
+
+--{ Variables }--
+
+local WeaponSystem = ServerStorage:WaitForChild("WeaponSystem");
+local BlasterAssets = WeaponSystem:WaitForChild("BlasterAssets");
+local ProjAsset = BlasterAssets:WaitForChild("Projectile");
+local StunProjAsset = BlasterAssets:WaitForChild("StunProjectile");
+local HitEffectAsset = BlasterAssets:WaitForChild("HitEffect");
+
+local ProjectileFolder = workspace:FindFirstChild("Projectiles") or Instance.new("Folder");
+ProjectileFolder.Name = "Projectiles";
+ProjectileFolder.Parent = workspace;
+
+local Blaster = script.Parent.Parent.Parent;
+
+local Player = Blaster.Parent.Parent;
+
+repeat task.wait() until Player.Character ~= nil;
+repeat task.wait() until Player.Character:FindFirstChild("Humanoid");
+repeat task.wait() until Player.Character:WaitForChild("Humanoid").Health > 0;
+
+local Core = Blaster:WaitForChild("Core");
+
+local Remote = Core:WaitForChild("Remote");
+
+local UI = Core:WaitForChild("UI");
+local BlasterUI = UI:WaitForChild("BlasterUI");
+
+local Sounds = Core:WaitForChild("Sounds");
+local FireSound = Sounds:WaitForChild("Fire");
+local CooldownSound = Sounds:WaitForChild("Cooldown");
+local HitSound = Sounds:WaitForChild("Hit");
+local StunSound = Sounds:WaitForChild("Stun");
+
+local Modules = Core:WaitForChild("Modules");
+local BlasterSettings = require(Modules.BlasterSettings);
+local lookAt = require(Modules.lookAt);
+
+local Anims = Core:WaitForChild("Anims");
+
+local Settings = {
+	["Fired"] = false,
+	["Reloading"] = false,
+	["Exhausted"] = false,
+	["EnergyUsed"] = 0,
+	["Equipped"] = false
+}
+
+--{ Weld Blaster }--
+
+local Character = Player.Character;
+local Humanoid = Character:WaitForChild("Humanoid");
+
+local Gun = Blaster:WaitForChild(Blaster.Name);
+local GunBarrel = Gun:FindFirstChild("Barrel");
+local GunModel = Gun:FindFirstChild("GunModel");
+local GunHandle = Gun.PrimaryPart or Gun:FindFirstChild("Handle");
+local GunBarrel2;
+local GunModel2;
+local GunHandle2;
+local Turn = 1;
+
+if (BlasterSettings.isDualBlaster) then
+	GunBarrel2 = Gun:FindFirstChild("Barrel2");
+	GunModel2 = Gun:FindFirstChild("GunModel2");
+	GunHandle2 = Gun:FindFirstChild("Handle2");
+end
+
+local CFrames = {
+	["E-11"] = {
+		"UpperTorso",
+		CFrame.new(0.8, 0.5, 0) * CFrame.Angles(44.8, 80.1, 0),
+		CFrame.new()
+	},
+	["DC-15A"] = {
+		"UpperTorso",
+		CFrame.new(-0.8, 0.3, -0.9) * CFrame.Angles(0, 0, -0.8),
+		CFrame.Angles(0, 1.5, 0)
+	},
+	["Z-6"] = {
+		"UpperTorso",
+		CFrame.new(0.8, -0.5, 0) * CFrame.Angles(44.8, 80.1, 0),
+		CFrame.new()
+	},
+	["DC-17"] = {
+		"LowerTorso",
+		CFrame.new(1.15, 0.6, -0.3) * CFrame.Angles(-134.4, 0, 0),
+		CFrame.new(),
+		Dual = {
+			"LowerTorso",
+			CFrame.new(-1.15, 0.6, -0.3) * CFrame.Angles(-134.4, 0, 0),
+			CFrame.Angles(1.6, 0, 0)
+		}
+	}
+}
+
+if (GunModel and GunHandle) then
+	for _, Part in next, GunModel:GetChildren() do
+		if (Part:IsA("BasePart")) then
+			local Weld = Instance.new("Weld");
+			Weld.Name = Blaster.Name .. "HandleWeld";
+			Weld.Part0 = GunHandle;
+			Weld.Part1 = Part;
+			Weld.C0 = Weld.Part0.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.C1 = Weld.Part1.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.Parent = Weld.Part0;
+
+			Part.Anchored = false;
+			Part.CanCollide = false;
+			Part.Massless = true;
+		end
+	end
+end
+
+if (GunModel2 and GunHandle2) then
+	for _, Part in next, GunModel2:GetChildren() do
+		if (Part:IsA("BasePart")) then
+			local Weld = Instance.new("Weld");
+			Weld.Name = Blaster.Name .. "HandleWeld";
+			Weld.Part0 = GunHandle2;
+			Weld.Part1 = Part;
+			Weld.C0 = Weld.Part0.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.C1 = Weld.Part1.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.Parent = Weld.Part0;
+
+			Part.Anchored = false;
+			Part.CanCollide = false;
+			Part.Massless = true;
+		end
+	end
+end
+
+if (GunBarrel) then
+	if (GunBarrel:IsA("BasePart")) then
+		if (not GunHandle:FindFirstChild(Blaster.Name .. "BarrelWeld")) then
+			local Weld = Instance.new("Weld");
+			Weld.Name = Blaster.Name .. "BarrelWeld";
+			Weld.Part0 = GunHandle;
+			Weld.Part1 = GunBarrel;
+			Weld.C0 = Weld.Part0.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.C1 = Weld.Part1.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.Parent = Weld.Part0;
+
+			GunBarrel.Anchored = false
+			GunBarrel.CanCollide = false;
+			GunBarrel.Massless = true;
+		end
+	end
+end
+
+if (GunBarrel2) then
+	if (GunBarrel2:IsA("BasePart")) then
+		if (not GunHandle2:FindFirstChild(Blaster.Name .. "BarrelWeld")) then
+			local Weld = Instance.new("Weld");
+			Weld.Name = Blaster.Name .. "BarrelWeld";
+			Weld.Part0 = GunHandle2;
+			Weld.Part1 = GunBarrel2;
+			Weld.C0 = Weld.Part0.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.C1 = Weld.Part1.CFrame:inverse() * CFrame.new(Weld.Part1.Position);
+			Weld.Parent = Weld.Part0;
+
+			GunBarrel2.Anchored = false
+			GunBarrel2.CanCollide = false;
+			GunBarrel2.Massless = true;
+		end
+	end
+end
+
+if (GunHandle) then
+	if (Character:FindFirstChild(CFrames[Blaster.Name][1])) then
+		if (Character[CFrames[Blaster.Name][1]]:FindFirstChild(Blaster.Name .. "GunWeld")) then
+			Character[CFrames[Blaster.Name][1]][Blaster.Name .. "GunWeld"]:Destroy();
+		end
+
+		local GunWeld = Instance.new("Weld");
+		GunWeld.Name = Blaster.Name .. "GunWeld";
+		GunWeld.Part0 = Character:WaitForChild(CFrames[Blaster.Name][1]);
+		GunWeld.Part1 = GunHandle;
+		GunWeld.C1 = CFrames[Blaster.Name][2];
+		GunWeld.Parent = GunWeld.Part0;
+
+		Gun.Parent = Character;
+	end
+end
+
+if (GunHandle2) then
+	if (Character:FindFirstChild(CFrames[Blaster.Name]["Dual"][1])) then
+		if (Character[CFrames[Blaster.Name]["Dual"][1]]:FindFirstChild(Blaster.Name .. "GunWeld2")) then
+			Character[CFrames[Blaster.Name]["Dual"][1]][Blaster.Name .. "GunWeld2"]:Destroy();
+		end
+
+		local GunWeld2 = Instance.new("Weld");
+		GunWeld2.Name = Blaster.Name .. "GunWeld2";
+		GunWeld2.Part0 = Character:WaitForChild(CFrames[Blaster.Name]["Dual"][1]);
+		GunWeld2.Part1 = GunHandle2;
+		GunWeld2.C1 = CFrames[Blaster.Name]["Dual"][2];
+		GunWeld2.Parent = GunWeld2.Part0;
+	end
+end
+
+--{ Code }--
+
+function lookAtF(Target, Eye)
+	local forwardVector = (Eye - Target).Unit;
+	local upVector = Vector3.new(0, 1, 0);
+	local rightVector = forwardVector:Cross(upVector);
+	local upVector2 = rightVector:Cross(forwardVector);
+
+	return CFrame.fromMatrix(Eye, rightVector, upVector2);
+end
+
+Blaster.Equipped:Connect(function()
+	Settings.Equipped = true;
+	
+	if (not Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+		local nUI = BlasterUI:Clone();
+		nUI.Name = Blaster.Name .. "BlasterUI";
+		nUI.Parent = Player.PlayerGui;
+	end
+
+	if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+		local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+		BUI.Enabled = true;
+		BUI.EnergyBar.FireType.Text = BlasterSettings.FireTypeList[BlasterSettings.FireType];
+		BUI.EnergyBar.BlasterName.Text = Blaster.Name
+	end
+
+	if (GunHandle) then
+		if (Character:FindFirstChild(CFrames[Blaster.Name][1])) then
+			if (Character[CFrames[Blaster.Name][1]]:FindFirstChild(Blaster.Name .. "GunWeld")) then
+				Character[CFrames[Blaster.Name][1]][Blaster.Name .. "GunWeld"]:Destroy();
+			end
+
+			local GunWeld = Instance.new("Weld");
+			GunWeld.Name = Blaster.Name .. "GunWeld";
+			GunWeld.Part0 = Blaster:WaitForChild("Handle");
+			GunWeld.Part1 = GunHandle;
+			GunWeld.C1 = CFrames[Blaster.Name][3];
+			GunWeld.Parent = GunWeld.Part0;
+		end
+	end
+
+	if (GunHandle2) then
+		if (Character:FindFirstChild(CFrames[Blaster.Name]["Dual"][1])) then
+			if (Character[CFrames[Blaster.Name]["Dual"][1]]:FindFirstChild(Blaster.Name .. "GunWeld2")) then
+				Character[CFrames[Blaster.Name]["Dual"][1]][Blaster.Name .. "GunWeld2"]:Destroy();
+			end
+
+			if (Character:FindFirstChild("LeftHand")) then
+				if (Character.LeftHand:FindFirstChild(Blaster.Name .. "GunWeld2")) then
+					Character.LeftHand[Blaster.Name .. "GunWeld2"]:Destroy();
+				end
+			end
+
+			local GunWeld2 = Instance.new("Weld");
+			GunWeld2.Name = Blaster.Name .. "GunWeld2";
+			GunWeld2.Part0 = Character:WaitForChild("LeftHand");
+			GunWeld2.Part1 = GunHandle2;
+			GunWeld2.C1 = CFrames[Blaster.Name]["Dual"][3];
+			GunWeld2.Parent = GunWeld2.Part0;
+		end
+	end
+end)
+
+Blaster.Unequipped:Connect(function()
+	Settings.Equipped = false;
+	
+	if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+		local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+		BUI.Enabled = false;
+	end
+
+	if (GunHandle) then
+		if (Character:FindFirstChild(CFrames[Blaster.Name][1])) then
+			if (Character[CFrames[Blaster.Name][1]]:FindFirstChild(Blaster.Name .. "GunWeld")) then
+				Character[CFrames[Blaster.Name][1]][Blaster.Name .. "GunWeld"]:Destroy();
+			end
+
+			local GunWeld = Instance.new("Weld");
+			GunWeld.Name = Blaster.Name .. "GunWeld";
+			GunWeld.Part0 = Character:WaitForChild(CFrames[Blaster.Name][1]);
+			GunWeld.Part1 = GunHandle;
+			GunWeld.C1 = CFrames[Blaster.Name][2];
+			GunWeld.Parent = GunWeld.Part0;
+		end
+	end
+
+	if (GunHandle2) then
+		if (Character:FindFirstChild(CFrames[Blaster.Name]["Dual"][1])) then
+			if (Character[CFrames[Blaster.Name]["Dual"][1]]:FindFirstChild(Blaster.Name .. "GunWeld2")) then
+				Character[CFrames[Blaster.Name]["Dual"][1]][Blaster.Name .. "GunWeld2"]:Destroy();
+			end
+
+			if (Character:FindFirstChild("LeftHand")) then
+				if (Character.LeftHand:FindFirstChild(Blaster.Name .. "GunWeld2")) then
+					Character.LeftHand[Blaster.Name .. "GunWeld2"]:Destroy();
+				end
+			end
+
+			local GunWeld2 = Instance.new("Weld");
+			GunWeld2.Name = Blaster.Name .. "GunWeld2";
+			GunWeld2.Part0 = Character:WaitForChild(CFrames[Blaster.Name]["Dual"][1]);
+			GunWeld2.Part1 = GunHandle2;
+			GunWeld2.C1 = CFrames[Blaster.Name]["Dual"][2];
+			GunWeld2.Parent = GunWeld2.Part0;
+		end
+	end
+end)
+
+Remote.OnServerInvoke = function(_, Args)
+	assert (Args ~= nil, "[BLASTER_HANDLER] Args nil");
+	assert (Args.Request ~= nil, "[BLASTER_HANDLER] Args.Request nil");
+
+	local Request = Args.Request;
+
+	if (Request == "Fire") then
+		assert (Args.RequestData ~= nil, "[BLASTER_FIRE_HANDLER] Args.RequestData nil");
+
+		local RequestData = Args.RequestData;
+		local Target = RequestData.Target;
+		local Character = Player.Character;
+
+		if (not Settings.Fired and not Settings.Exhausted and not Settings.Reloading and Settings.Equipped) then
+			Settings.Fired = true;
+			
+			local MaxEnergy = table.find(BlasterSettings.Attachments, "ExtendedMag") and BlasterSettings.ExtendedMaxEnergy or BlasterSettings.MaxEnergy;
+
+			if (BlasterSettings.FireTypeList[BlasterSettings.FireType] == "Automatic" or BlasterSettings.FireTypeList[BlasterSettings.FireType] == "Semi-Automatic" or BlasterSettings.FireTypeList[BlasterSettings.FireType] == "Burst") then				
+				task.spawn(function()
+					task.spawn(function()
+						if (Settings.EnergyUsed < MaxEnergy) then
+							Settings.EnergyUsed += 1;
+							
+							if (Settings.EnergyUsed >= MaxEnergy) then
+								Settings.EnergyUsed = MaxEnergy;
+							end
+
+							if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+								local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+								BUI.EnergyBar.Energy:TweenSize(UDim2.new((Settings.EnergyUsed / MaxEnergy), 0, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Linear, .1);
+							end
+						end
+
+						if (Settings.EnergyUsed >= MaxEnergy) then
+							Settings.EnergyUsed = MaxEnergy;
+
+							Settings.Exhausted = true;
+
+							if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+								local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+								
+								BUI.EnergyBar.Bonus.Position = UDim2.new((math.random(350, 800) / 1000), 0, 0, 0);
+								BUI.EnergyBar.Bonus.Visible = true;
+
+								BUI.EnergyBar.Energy.Size = UDim2.new(1, 0, 1, 0);
+
+								task.delay(.5, function()
+									CooldownSound.TimePosition = CooldownSound.TimeLength - BlasterSettings.Cooldown;
+									CooldownSound:Play();
+
+									if (GunHandle:FindFirstChild("CooldownEffect")) then
+										GunHandle.CooldownEffect.Enabled = true;
+									end
+
+									if (GunHandle2) then
+										if (GunHandle2:FindFirstChild("CooldownEffect")) then
+											GunHandle2.CooldownEffect.Enabled = true;
+										end
+									end
+
+									local BarTween = TweenService:Create(
+										BUI.EnergyBar.Energy,
+										TweenInfo.new(BlasterSettings.Cooldown, Enum.EasingStyle.Linear, Enum.EasingDirection.In),
+										{
+											Size = UDim2.new(0, 0, 1, 0);
+										}
+									);
+
+									BarTween:Play();
+
+									local BonusRemote = Instance.new("RemoteEvent");
+									BonusRemote.Name = "BonusHit";
+									BonusRemote.Parent = Core;
+
+									local HitBonus = false;
+
+									local BRConn = BonusRemote.OnServerEvent:Connect(function(Plr, Args)
+										assert (Args ~= nil, "[BLASTER_HANDLER] Args nil");
+										assert (Args.Request ~= nil, "[BLASTER_HANDLER] Args.Request nil");
+
+										if (Settings.Exhausted) then
+											if (Plr == Player) then
+												if (Args.Request == "BonusHit") then
+													if (BUI.EnergyBar.Energy.Size.X.Scale >= BUI.EnergyBar.Bonus.Position.X.Scale and BUI.EnergyBar.Energy.Size.X.Scale <= BUI.EnergyBar.Bonus.Position.X.Scale + BUI.EnergyBar.Bonus.Size.X.Scale) then
+														HitBonus = true;
+													end
+
+													BUI.EnergyBar.Bonus.Visible = false;
+													BonusRemote:Destroy();
+												end
+											end
+										end
+									end)
+
+									task.spawn(function()
+										repeat task.wait() until BUI.EnergyBar.Energy.Size.X.Scale < BUI.EnergyBar.Bonus.Position.X.Scale do
+											task.wait(.1);
+
+											BUI.EnergyBar.Bonus.Visible = false;
+										end
+									end)
+
+									repeat task.wait() until BUI.EnergyBar.Energy.Size == UDim2.new(0, 0, 1, 0) or HitBonus do
+										BarTween:Pause();
+
+										local newTime = ((BUI.EnergyBar.Energy.Size.X.Scale * BlasterSettings.Cooldown) / 2);
+
+										CooldownSound.TimePosition = CooldownSound.TimePosition + newTime;
+										BUI.EnergyBar.Energy:TweenSize(UDim2.new(0, 0, 1, 0), Enum.EasingDirection.In, Enum.EasingStyle.Linear, newTime);
+
+										BonusRemote:Destroy();
+										BRConn:Disconnect();
+
+										BUI.EnergyBar.Bonus.Visible = false;
+
+										repeat task.wait() until BUI.EnergyBar.Energy.Size == UDim2.new(0, 0, 1, 0);
+
+										if (GunHandle:FindFirstChild("CooldownEffect")) then
+											GunHandle.CooldownEffect.Enabled = false;
+										end
+
+										if (GunHandle2) then
+											if (GunHandle2:FindFirstChild("CooldownEffect")) then
+												GunHandle2.CooldownEffect.Enabled = false;
+											end
+										end
+
+										Settings.EnergyUsed = 0;
+
+										Settings.Exhausted = false;
+									end
+								end)
+							end
+						end
+					end)
+
+					local ProjBarrel = GunBarrel;
+					local Projectile2;
+					
+					if (BlasterSettings.isDualBlaster) then
+						if (BlasterSettings.takeTurnsToShoot) then
+							if (Turn == 0) then
+								ProjBarrel = GunBarrel;
+
+								Turn = 1;
+							elseif (Turn == 1) then
+								ProjBarrel = GunBarrel2;
+
+								Turn = 0;
+							end
+						else
+							Projectile2 = ProjAsset:Clone();
+							Projectile2.Name = Blaster.Name .. "_Projectile";
+							Projectile2.CFrame = GunBarrel2.CFrame;
+							Projectile2.SurfaceLight.Color = BlasterSettings.ProjectileColor;
+							Projectile2.Anchored = true;
+							Projectile2.CanCollide = false;
+							Projectile2.Massless = true;
+							Projectile2.CFrame = lookAtF(Target, Projectile2.Position);
+							Projectile2.Parent = ProjectileFolder;
+
+							task.spawn(function()
+								local stepDistance = BlasterSettings.ProjectileVelocity * 0.032;
+								local stepWait = 0;
+
+								local maxDistance = stepDistance * (BlasterSettings.ProjectileLifespan * 1000);
+								local curDistance = 0;
+
+								local currentPos = Projectile2.Position;
+								local currentNormal = CFrame.new(GunBarrel2.Position, Target).LookVector;
+
+								for _, Human in next, workspace:GetChildren() do
+									if (Human.Name ~= Player.Name) then
+										if (Human:FindFirstChild("Humanoid")) then
+											if (Human:FindFirstChild("HumanoidRootPart")) then
+												if ((GunBarrel2.Position - Human.HumanoidRootPart.Position).Magnitude < 7) then
+													currentNormal = GunBarrel2.CFrame.LookVector;
+												end
+											end
+										end
+									end
+								end
+
+								local hitObject = false;
+
+								local function Step(overrideDistance)
+									if (not hitObject) then
+										local RayParams = RaycastParams.new();
+										local Direction = currentNormal * (overrideDistance or stepDistance);
+										RayParams.FilterType = Enum.RaycastFilterType.Blacklist;
+										RayParams.FilterDescendantsInstances = {
+											ProjectileFolder,
+											Character,
+											Gun,
+											Blaster
+										};
+										local Result = workspace:Raycast(currentPos, Direction, RayParams);
+										local Pos;
+
+										if (Result) then
+											Pos = Result.Position;
+										else
+											Pos = currentPos + Direction;
+										end
+
+										Projectile2.CFrame = CFrame.new(currentPos:Lerp(Pos, 0.5), Pos);
+
+										local oldPos = currentPos;
+										currentPos = Pos;
+
+										if (Result) then
+											if (string.find(Result.Instance.Name, "[FORCEFIELD]")) then
+												print("damaged forcefield");
+												print(Result.Instance:GetAttribute("Health"));
+
+												Result.Instance:SetAttribute("Health", Result.Instance:GetAttribute("Health") - BlasterSettings.Damage);
+
+												local Norm = Result.Normal;
+												local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+
+												currentNormal = Reflect;
+
+												Step(stepDistance - (Pos - oldPos).Magnitude);
+
+												return;
+											end
+											
+											if (Result.Instance.Name == "BlockHitbox") then
+												local Char = Result.Instance.Parent.Parent;
+												
+												if (Char:FindFirstChildWhichIsA("Tool")) then
+													local Tool = Char:FindFirstChildWhichIsA("Tool");
+													
+													if (Tool.Name == Result.Instance.Parent.Name) then
+														if (Tool:FindFirstChild("Core")) then
+															if (Tool.Core:FindFirstChild("Global")) then
+																if (Tool.Core.Global:FindFirstChild("Blocking")) then
+																	if (Tool.Core.Global.Blocking.Value) then
+																		local Norm = Result.Normal;
+																		local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+																		
+																		currentNormal = Reflect;
+																		
+																		Step(stepDistance - (Pos - oldPos).Magnitude);
+																		
+																		return;
+																	end
+																end
+															end
+														end
+													end
+												end
+											end
+											
+											if (table.find(BlasterSettings.ReflectiveMaterials, Result.Material)) then
+												local Norm = Result.Normal;
+												local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+												
+												currentNormal = Reflect;
+
+												Step(stepDistance - (Pos - oldPos).Magnitude);
+
+												return;
+											else
+												if (Result.Instance.Parent) then
+													if (not hitObject) then
+														local hitE = HitEffectAsset:Clone();
+														hitE.Position = Projectile2.Position;
+														hitE.Parent = Result.Instance;
+
+														local Character = Result.Instance.Parent:FindFirstAncestorWhichIsA("Model");
+
+														if (Character) then
+															if (not Character:FindFirstChild("Humanoid")) then
+																Character = Character:FindFirstAncestorWhichIsA("Model");
+
+																if (Character) then
+																	if (not Character:FindFirstChild("Humanoid")) then
+																		Character = Character:FindFirstAncestorWhichIsA("Model");
+																	end
+																end
+															end
+														end
+
+														if (Character) then
+															local Human = Character:FindFirstChild("Humanoid");
+
+															if (Human) then
+																local Plr = Players:GetPlayerFromCharacter(Character);
+
+																if (Plr) then
+																	if (Plr.Name ~= Player.Name) then
+																		HitSound:Play();
+
+																		Human:TakeDamage(BlasterSettings.Damage);
+																	end
+																else
+																	HitSound:Play();
+
+																	Human:TakeDamage(BlasterSettings.Damage);
+																end
+															end
+														end
+
+														Projectile2:Destroy();
+
+														task.delay(.15, function()
+															if (hitE) then
+																hitE:Destroy();
+															end
+														end)
+
+														hitObject = true;
+													end
+												end
+											end
+										end
+
+										curDistance = (curDistance + (Pos - oldPos).Magnitude);
+
+										if (curDistance < maxDistance) then
+											if (not hitObject) then
+												task.wait(stepWait);
+
+												Step();
+											end
+										end
+									end
+								end
+								
+								if (not hitObject) then
+									Step();
+								end
+							end)
+
+							if (GunBarrel2:FindFirstChild("FlashFX")) then
+								GunBarrel2.FlashFX.Enabled = true;
+							end
+
+							if (GunBarrel2:FindFirstChild("FlashPFX")) then
+								GunBarrel2.FlashPFX.Enabled = true;
+							end
+						end
+					end
+
+					local Projectile = ProjAsset:Clone();
+					Projectile.Name = Blaster.Name .. "_Projectile";
+					Projectile.CFrame = ProjBarrel.CFrame;
+					Projectile.SurfaceLight.Color = BlasterSettings.ProjectileColor;
+					Projectile.Anchored = true;
+					Projectile.CanCollide = false;
+					Projectile.Massless = true;
+					Projectile.CFrame = lookAtF(Target, Projectile.Position);
+					Projectile.Parent = ProjectileFolder;
+					
+					task.spawn(function()
+						local stepDistance = BlasterSettings.ProjectileVelocity * 0.032;
+						local stepWait = 0;
+						
+						local maxDistance = stepDistance * (BlasterSettings.ProjectileLifespan * 1000);
+						local curDistance = 0;
+
+						local currentPos = Projectile.Position;
+						local currentNormal = CFrame.new(ProjBarrel.Position, Target).LookVector;
+						
+						for _, Human in next, workspace:GetChildren() do
+							if (Human.Name ~= Player.Name) then
+								if (Human:FindFirstChild("Humanoid")) then
+									if (Human:FindFirstChild("HumanoidRootPart")) then
+										if ((ProjBarrel.Position - Human.HumanoidRootPart.Position).Magnitude < 7) then
+											currentNormal = ProjBarrel.CFrame.LookVector;
+										end
+									end
+								end
+							end
+						end
+						
+						local hitObject = false;
+						local hitFF = false;
+
+						local function Step(overrideDistance)
+							local RayParams = RaycastParams.new();
+							local Direction = currentNormal * (overrideDistance or stepDistance);
+							RayParams.FilterType = Enum.RaycastFilterType.Blacklist;
+							RayParams.FilterDescendantsInstances = {
+								ProjectileFolder,
+								Character,
+								Gun,
+								Blaster
+							};
+							local Result = workspace:Raycast(currentPos, Direction, RayParams);
+							local Pos;
+
+							if (Result) then
+								Pos = Result.Position;
+							else
+								Pos = currentPos + Direction;
+							end
+
+							Projectile.CFrame = CFrame.new(currentPos:Lerp(Pos, 0.5), Pos);
+
+							local oldPos = currentPos;
+							currentPos = Pos;
+							
+							if (Result) then
+								if (string.find(Result.Instance.Name, "[FORCEFIELD]")) then		
+									if (not hitFF) then
+										if (Result.Instance:GetAttribute("Health") ~= nil) then
+											Result.Instance:SetAttribute("Health", Result.Instance:GetAttribute("Health") - BlasterSettings.Damage);
+										end
+
+										local Norm = Result.Normal;
+										local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+
+										currentNormal = Reflect;
+										
+										hitFF = true;
+
+										Step(stepDistance - (Pos - oldPos).Magnitude);
+										
+										return;
+									end
+								end
+								
+								if (Result.Instance.Name == "BlockHitbox") then
+									local Char = Result.Instance.Parent.Parent;
+
+									if (Char:FindFirstChildWhichIsA("Tool")) then
+										local Tool = Char:FindFirstChildWhichIsA("Tool");
+
+										if (Tool.Name == Result.Instance.Parent.Name) then
+											if (Tool:FindFirstChild("Core")) then
+												if (Tool.Core:FindFirstChild("Global")) then
+													if (Tool.Core.Global:FindFirstChild("Blocking")) then
+														if (Tool.Core.Global.Blocking.Value) then
+															local Norm = Result.Normal;
+															local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+
+															currentNormal = Reflect;
+
+															Step(stepDistance - (Pos - oldPos).Magnitude);
+
+															return;
+														end
+													end
+												end
+											end
+										end
+									end
+								end
+								
+								if (table.find(BlasterSettings.ReflectiveMaterials, Result.Material)) then
+									local Norm = Result.Normal;
+									local Reflect = (currentNormal - (2 * currentNormal:Dot(Norm) * Norm));
+									currentNormal = Reflect;
+									
+									Step(stepDistance - (Pos - oldPos).Magnitude);
+
+									return;
+								else
+									if (Result.Instance.Parent) then
+										if (not hitObject) then
+											local hitE = HitEffectAsset:Clone();
+											hitE.Position = Projectile.Position;
+											hitE.Parent = Result.Instance;
+
+											local Character = Result.Instance.Parent:FindFirstAncestorWhichIsA("Model");
+											
+											if (Character) then
+												if (not Character:FindFirstChild("Humanoid")) then
+													Character = Character:FindFirstAncestorWhichIsA("Model");
+
+													if (Character) then
+														if (not Character:FindFirstChild("Humanoid")) then
+															Character = Character:FindFirstAncestorWhichIsA("Model");
+														end
+													end
+												end
+											end
+
+											if (Character) then
+												local Human = Character:FindFirstChild("Humanoid");
+
+												if (Human) then
+													local Plr = Players:GetPlayerFromCharacter(Character);
+
+													if (Plr) then
+														if (Plr.Name ~= Player.Name) then
+															HitSound:Play();
+
+															Human:TakeDamage(BlasterSettings.Damage);
+														end
+													else
+														HitSound:Play();
+
+														Human:TakeDamage(BlasterSettings.Damage);
+													end
+												end
+											end
+
+											Projectile:Destroy();
+
+											task.delay(.15, function()
+												if (hitE) then
+													hitE:Destroy();
+												end
+											end)
+
+											hitObject = true;
+										end
+									end
+								end
+							end
+
+							curDistance = (curDistance + (Pos - oldPos).Magnitude);
+
+							if (curDistance < maxDistance) then
+								task.wait(stepWait);
+
+								Step();
+							end
+						end
+
+						Step();
+					end)
+
+					if (ProjBarrel:FindFirstChild("FlashFX")) then
+						ProjBarrel.FlashFX.Enabled = true;
+					end
+
+					if (ProjBarrel:FindFirstChild("FlashPFX")) then
+						ProjBarrel.FlashPFX.Enabled = true;
+					end
+
+					FireSound:Play();
+					
+					task.delay(.05, function()
+						if (GunBarrel:FindFirstChild("FlashFX")) then
+							GunBarrel.FlashFX.Enabled = false;
+						end
+
+						if (GunBarrel:FindFirstChild("FlashPFX")) then
+							GunBarrel.FlashPFX.Enabled = false;
+						end	
+
+						if (GunBarrel2) then
+							if (GunBarrel2:FindFirstChild("FlashFX")) then
+								GunBarrel2.FlashFX.Enabled = false;
+							end
+
+							if (GunBarrel2:FindFirstChild("FlashPFX")) then
+								GunBarrel2.FlashPFX.Enabled = false;
+							end
+						end
+					end)
+
+					task.delay(BlasterSettings.FireRate, function()
+						Settings.Fired = false;
+					end)
+
+					task.delay(BlasterSettings.ProjectileLifespan, function()
+						if (Projectile) then
+							Projectile:Destroy();
+						end
+
+						if (Projectile2) then
+							Projectile2:Destroy();
+						end
+					end)
+				end)
+
+				return "Fired";
+			elseif (BlasterSettings.FireTypeList[BlasterSettings.FireType] == "Stun") then
+				task.spawn(function()
+					task.spawn(function()
+						if (Settings.EnergyUsed < MaxEnergy) then
+							Settings.EnergyUsed += (MaxEnergy / 5);
+							
+							if (Settings.EnergyUsed >= MaxEnergy) then
+								Settings.EnergyUsed = MaxEnergy;
+							end
+
+							if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+								local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+								BUI.EnergyBar.Energy:TweenSize(UDim2.new((Settings.EnergyUsed / MaxEnergy), 0, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Linear, .1);
+							end
+						end
+
+						if (Settings.EnergyUsed >= MaxEnergy) then
+							Settings.EnergyUsed = MaxEnergy;
+
+							Settings.Exhausted = true;
+
+							if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+								local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+								BUI.EnergyBar.Bonus.Position = UDim2.new((math.random(350, 800) / 1000), 0, 0, 0);
+								BUI.EnergyBar.Bonus.Visible = true;
+
+								BUI.EnergyBar.Energy.Size = UDim2.new(1, 0, 1, 0);
+
+								task.delay(.5, function()
+									CooldownSound.TimePosition = CooldownSound.TimeLength - BlasterSettings.Cooldown;
+									CooldownSound:Play();
+
+									if (GunHandle:FindFirstChild("CooldownEffect")) then
+										GunHandle.CooldownEffect.Enabled = true;
+									end
+
+									if (GunHandle2) then
+										if (GunHandle2:FindFirstChild("CooldownEffect")) then
+											GunHandle2.CooldownEffect.Enabled = true;
+										end
+									end
+
+									local BarTween = TweenService:Create(
+										BUI.EnergyBar.Energy,
+										TweenInfo.new(BlasterSettings.Cooldown, Enum.EasingStyle.Linear, Enum.EasingDirection.In),
+										{
+											Size = UDim2.new(0, 0, 1, 0);
+										}
+									);
+
+									BarTween:Play();
+
+									local BonusRemote = Instance.new("RemoteEvent");
+									BonusRemote.Name = "BonusHit";
+									BonusRemote.Parent = Core;
+
+									local HitBonus = false;
+
+									local BRConn = BonusRemote.OnServerEvent:Connect(function(Plr, Args)
+										assert (Args ~= nil, "[BLASTER_HANDLER] Args nil");
+										assert (Args.Request ~= nil, "[BLASTER_HANDLER] Args.Request nil");
+
+										if (Settings.Exhausted) then
+											if (Plr == Player) then
+												if (Args.Request == "BonusHit") then
+													if (BUI.EnergyBar.Energy.Size.X.Scale >= BUI.EnergyBar.Bonus.Position.X.Scale and BUI.EnergyBar.Energy.Size.X.Scale <= BUI.EnergyBar.Bonus.Position.X.Scale + BUI.EnergyBar.Bonus.Size.X.Scale) then
+														HitBonus = true;
+													end
+
+													BUI.EnergyBar.Bonus.Visible = false;
+													BonusRemote:Destroy();
+												end
+											end
+										end
+									end)
+
+									task.spawn(function()
+										repeat task.wait() until BUI.EnergyBar.Energy.Size.X.Scale < BUI.EnergyBar.Bonus.Position.X.Scale do
+											task.wait(.1);
+
+											BUI.EnergyBar.Bonus.Visible = false;
+										end
+									end)
+
+									repeat task.wait() until BUI.EnergyBar.Energy.Size == UDim2.new(0, 0, 1, 0) or HitBonus do
+										BarTween:Pause();
+
+										local newTime = ((BUI.EnergyBar.Energy.Size.X.Scale * BlasterSettings.Cooldown) / 2);
+
+										CooldownSound.TimePosition = CooldownSound.TimePosition + newTime;
+										BUI.EnergyBar.Energy:TweenSize(UDim2.new(0, 0, 1, 0), Enum.EasingDirection.In, Enum.EasingStyle.Linear, newTime);
+
+										BonusRemote:Destroy();
+										BRConn:Disconnect();
+
+										BUI.EnergyBar.Bonus.Visible = false;
+
+										repeat task.wait() until BUI.EnergyBar.Energy.Size == UDim2.new(0, 0, 1, 0);
+
+										if (GunHandle:FindFirstChild("CooldownEffect")) then
+											GunHandle.CooldownEffect.Enabled = false;
+										end
+
+										if (GunHandle2) then
+											if (GunHandle2:FindFirstChild("CooldownEffect")) then
+												GunHandle2.CooldownEffect.Enabled = false;
+											end
+										end
+
+										Settings.EnergyUsed = 0;
+
+										Settings.Exhausted = false;
+									end
+								end)
+							end
+						end
+					end)
+
+					local ProjBarrel = GunBarrel;
+					local Projectile2;
+
+					if (BlasterSettings.isDualBlaster) then
+						if (BlasterSettings.takeTurnsToShoot) then
+							if (Turn == 0) then
+								ProjBarrel = GunBarrel;
+
+								Turn = 1;
+							elseif (Turn == 1) then
+								ProjBarrel = GunBarrel2;
+
+								Turn = 0;
+							end
+						else
+							Projectile2 = StunProjAsset:Clone();
+							Projectile2.Name = Blaster.Name .. "_StunProjectile";
+							Projectile2.CFrame = GunBarrel2.CFrame;
+							Projectile2.Anchored = false;
+							Projectile2.CanCollide = false;
+							Projectile2.Massless = true;
+							Projectile2.CFrame = lookAtF(Target, Projectile2.Position);
+							Projectile2.Parent = ProjectileFolder;
+							
+							StunSound:Play();
+							
+							task.spawn(function()
+								local stepDistance = BlasterSettings.ProjectileVelocity * 0.032;
+								local stepWait = 0;
+
+								local maxDistance = stepDistance * (BlasterSettings.ProjectileLifespan * 1000);
+								local curDistance = 0;
+
+								local currentPos = Projectile2.Position;
+								local currentNormal = CFrame.new(GunBarrel.Position, Target).LookVector;
+
+								for _, Human in next, workspace:GetChildren() do
+									if (Human.Name ~= Player.Name) then
+										if (Human:FindFirstChild("Humanoid")) then
+											if (Human:FindFirstChild("HumanoidRootPart")) then
+												if ((GunBarrel.Position - Human.HumanoidRootPart.Position).Magnitude < 7) then
+													currentNormal = GunBarrel.CFrame.LookVector;
+												end
+											end
+										end
+									end
+								end
+
+								local hitObject = false;
+
+								local function Step(overrideDistance)
+									local RayParams = RaycastParams.new();
+									local Direction = currentNormal * (overrideDistance or stepDistance);
+									RayParams.FilterType = Enum.RaycastFilterType.Blacklist;
+									RayParams.FilterDescendantsInstances = {
+										ProjectileFolder,
+										Character,
+										Gun,
+										Blaster
+									};
+									local Result = workspace:Raycast(currentPos, Direction, RayParams);
+									local Pos;
+
+									if (Result) then
+										Pos = Result.Position;
+									else
+										Pos = currentPos + Direction;
+									end
+
+									Projectile2.CFrame = CFrame.new(currentPos:Lerp(Pos, 0.5), Pos);
+
+									local oldPos = currentPos;
+									currentPos = Pos;
+
+									if (Result) then
+										if (Result.Instance.Parent) then
+											if (not hitObject) then
+												local Character = Result.Instance.Parent:FindFirstAncestorWhichIsA("Model");
+
+												if (Character) then
+													if (not Character:FindFirstChild("Humanoid")) then
+														Character = Character:FindFirstAncestorWhichIsA("Model");
+
+														if (Character) then
+															if (not Character:FindFirstChild("Humanoid")) then
+																Character = Character:FindFirstAncestorWhichIsA("Model");
+															end
+														end
+													end
+												end
+
+												if (Character) then
+													local Human = Character:FindFirstChild("Humanoid");
+
+													if (Human) then
+														local Plr = Players:GetPlayerFromCharacter(Character);
+
+														if (Plr) then
+															if (Plr.Name ~= Player.Name) then
+																HitSound:Play();
+
+																Human.PlatformStand = true;
+															end
+														else
+															HitSound:Play();
+
+															Human.PlatformStand = true;
+														end
+
+														task.delay(2, function()
+															Human.PlatformStand = false;
+														end)
+													end
+												end
+
+												Projectile2:Destroy();
+
+												hitObject = true;
+											end
+										end
+									end
+
+									curDistance = (curDistance + (Pos - oldPos).Magnitude);
+
+									if (curDistance < maxDistance) then
+										task.wait(stepWait);
+
+										Step();
+									end
+								end
+
+								Step();
+							end)
+						end
+					end
+
+					local Projectile = StunProjAsset:Clone();
+					Projectile.Name = Blaster.Name .. "_StunProjectile";
+					Projectile.CFrame = ProjBarrel.CFrame
+					Projectile.Anchored = false;
+					Projectile.CanCollide = false;
+					Projectile.Massless = true;
+					Projectile.CFrame = lookAtF(Target, Projectile.Position);
+					Projectile.Parent = ProjectileFolder;
+
+					StunSound:Play();
+					
+					task.spawn(function()
+						local stepDistance = BlasterSettings.ProjectileVelocity * 0.032;
+						local stepWait = 0;
+
+						local maxDistance = stepDistance * (BlasterSettings.ProjectileLifespan * 1000);
+						local curDistance = 0;
+
+						local currentPos = Projectile.Position;
+						local currentNormal = CFrame.new(GunBarrel.Position, Target).LookVector;
+
+						for _, Human in next, workspace:GetChildren() do
+							if (Human.Name ~= Player.Name) then
+								if (Human:FindFirstChild("Humanoid")) then
+									if (Human:FindFirstChild("HumanoidRootPart")) then
+										if ((GunBarrel.Position - Human.HumanoidRootPart.Position).Magnitude < 7) then
+											currentNormal = GunBarrel.CFrame.LookVector;
+										end
+									end
+								end
+							end
+						end
+
+						local hitObject = false;
+
+						local function Step(overrideDistance)
+							local RayParams = RaycastParams.new();
+							local Direction = currentNormal * (overrideDistance or stepDistance);
+							RayParams.FilterType = Enum.RaycastFilterType.Blacklist;
+							RayParams.FilterDescendantsInstances = {
+								ProjectileFolder,
+								Character,
+								Gun,
+								Blaster
+							};
+							local Result = workspace:Raycast(currentPos, Direction, RayParams);
+							local Pos;
+
+							if (Result) then
+								Pos = Result.Position;
+							else
+								Pos = currentPos + Direction;
+							end
+
+							Projectile.CFrame = CFrame.new(currentPos:Lerp(Pos, 0.5), Pos);
+
+							local oldPos = currentPos;
+							currentPos = Pos;
+
+							if (Result) then
+								if (Result.Instance.Parent) then
+									if (not hitObject) then
+										local Character = Result.Instance.Parent:FindFirstAncestorWhichIsA("Model");
+
+										if (Character) then
+											if (not Character:FindFirstChild("Humanoid")) then
+												Character = Character:FindFirstAncestorWhichIsA("Model");
+
+												if (Character) then
+													if (not Character:FindFirstChild("Humanoid")) then
+														Character = Character:FindFirstAncestorWhichIsA("Model");
+													end
+												end
+											end
+										end
+
+										if (Character) then
+											local Human = Character:FindFirstChild("Humanoid");
+
+											if (Human) then
+												local Plr = Players:GetPlayerFromCharacter(Character);
+
+												if (Plr) then
+													if (Plr.Name ~= Player.Name) then
+														HitSound:Play();
+
+														Human.PlatformStand = true;
+													end
+												else
+													HitSound:Play();
+
+													Human.PlatformStand = true;
+												end
+												
+												task.delay(2, function()
+													Human.PlatformStand = false;
+												end)
+											end
+										end
+
+										Projectile:Destroy();
+
+										hitObject = true;
+									end
+								end
+							end
+
+							curDistance = (curDistance + (Pos - oldPos).Magnitude);
+
+							if (curDistance < maxDistance) then
+								task.wait(stepWait);
+
+								Step();
+							end
+						end
+
+						Step();
+					end)
+
+					task.delay(BlasterSettings.FireRate, function()
+						Settings.Fired = false;
+					end)
+
+					task.delay(BlasterSettings.ProjectileLifespan, function()
+						if (Projectile) then
+							Projectile:Destroy();
+						end
+
+						if (Projectile2) then
+							Projectile2:Destroy();
+						end
+					end)
+				end)
+
+				return "Fired";
+			end
+		end
+	elseif (Request == "Reload") then
+		if (not Settings.Fired and not Settings.Reloading and not Settings.Exhausted and Settings.EnergyUsed > 0 and Settings.Equipped) then
+			Settings.Reloading = true;
+
+			if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+				local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+				CooldownSound.TimePosition = CooldownSound.TimeLength - ((BUI.EnergyBar.Energy.Size.X.Scale * BlasterSettings.Cooldown) / 2);
+				CooldownSound:Play();
+
+				if (GunHandle:FindFirstChild("CooldownEffect")) then
+					GunHandle.CooldownEffect.Enabled = true;
+				end
+
+				if (GunHandle2) then
+					if (GunHandle2:FindFirstChild("CooldownEffect")) then
+						GunHandle2.CooldownEffect.Enabled = false;
+					end
+				end
+
+				local BarTween = TweenService:Create(
+					BUI.EnergyBar.Energy,
+					TweenInfo.new(((BUI.EnergyBar.Energy.Size.X.Scale * BlasterSettings.Cooldown) / 2), Enum.EasingStyle.Linear, Enum.EasingDirection.In),
+					{
+						Size = UDim2.new(0, 0, 1, 0);
+					}
+				);
+
+				BarTween:Play();
+
+				repeat task.wait() until BUI.EnergyBar.Energy.Size == UDim2.new(0, 0, 1, 0) do
+					if (GunHandle:FindFirstChild("CooldownEffect")) then
+						GunHandle.CooldownEffect.Enabled = false;
+					end
+
+					if (GunHandle2) then
+						if (GunHandle2:FindFirstChild("CooldownEffect")) then
+							GunHandle2.CooldownEffect.Enabled = false;
+						end
+					end
+
+					Settings.EnergyUsed = 0;
+					Settings.Reloading = false;
+				end
+			end
+		end
+	elseif (Request == "SwitchType") then
+		assert (Args.RequestData ~= nil, "[BLASTER_SWITCHTYPE_HANDLER] Args.RequestData nil");
+
+		local FireType = Args.RequestData.FireType;
+
+		if (FireType ~= nil) then
+			if (typeof(FireType) == "number") then
+				BlasterSettings.FireType = FireType;
+			end
+		end
+
+		if (Player.PlayerGui:FindFirstChild(Blaster.Name .. "BlasterUI")) then
+			local BUI = Player.PlayerGui:WaitForChild(Blaster.Name .. "BlasterUI");
+
+			BUI.EnergyBar.FireType.Text = BlasterSettings.FireTypeList[FireType];
+		end
+	elseif (Request == "InitLookAt") then
+		lookAt[Player] = lookAt.new(Character);
+
+		local Conn = RunService.Heartbeat:Connect(function(dt)
+			lookAt[Player]:Update(dt);
+		end)
+
+		local Hum = Character:FindFirstChild("Humanoid");
+
+		if (Hum) then
+			Hum.Died:Connect(function()
+				Conn:Disconnect();
+			end)
+		end
+	elseif (Request == "UpdateLookAt") then
+		assert (Args.RequestData ~= nil, "[BLASTER_LOOKAT_HANDLER] Args.RequestData nil");
+
+		local RequestData = Args.RequestData;
+		local Target = RequestData.Target;
+
+		if (Target) then
+			if (lookAt[Player]) then
+				lookAt[Player]:CalcGoal(Target);
+			end
+		end
+	elseif (Request == "PingCheck") then
+		return "PingCheck";
+	end
+end
+
+Humanoid.Died:Connect(function()
+	Remote:InvokeClient(Player, {
+		Request = "OnDied"	
+	});
+
+	for _, v in next, Character:GetDescendants() do
+		if (v.Name == Blaster.Name .. "GunWeld") then
+			v:Destroy();
+		end
+	end
+
+	for _, v in next, Character:GetChildren() do
+		if (v.Name == Blaster.Name) then
+			v:Destroy();
+		end
+	end
+
+	Blaster:Destroy();
+end)
